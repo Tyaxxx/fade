@@ -1,6 +1,6 @@
 # Fade
 
-Fade (shown in the app as **Fade Generator**) generates soft, grainy multi-colour gradient images in the browser. You pick a palette, shape the colour zones, add grain and blur, and download a full-resolution JPEG (up to 8K). Every image comes from a seed code, so the same settings always give the same pixels, and you can save and reload settings as a small JSON file.
+Fade (shown in the app as **Fade Generator**) generates soft, grainy multi-colour gradient images in the browser. You pick a palette, shape the colour zones, add grain and blur, and download a full-resolution JPEG or PNG (up to 8K). Every image comes from a seed code, so the same settings always give the same pixels, and you can save and reload settings as a small JSON file.
 
 Everything runs client-side: there is no server, and the app builds to a static site.
 
@@ -20,7 +20,7 @@ Settings are on the left, the live preview is on the right (stacked on phones).
   - the **shuffle** icon re-rolls that section alone, even when it's locked.
 - **Expand all / Collapse all** opens or closes every section at once.
 - **Header icons:** undo (`Ctrl+Z`), redo (`Ctrl+Shift+Z` or `Ctrl+Y`; `Cmd` on Mac), import settings, export settings.
-- **Download** (the round button under the preview) renders the full-size JPEG at the chosen quality in a background worker, so the preview stays responsive.
+- **Download** (the round button under the preview) renders the full-size image in a background worker, so the preview stays responsive. Pick **JPEG** or **PNG** next to it. The quality slider applies to JPEG only and is disabled for PNG, which is lossless. Files are named `fade-<seed code>-<width>x<height>.jpg` (or `.png`). The format choice isn't saved in the settings file.
 
 ## Commands
 
@@ -98,3 +98,5 @@ On import, missing or out-of-range values fall back to defaults or are clamped, 
 **Grain.** Grain is added per pixel. Fine grain is per-pixel noise; larger grain sizes give clumped noise, with a little low-frequency mottle so it reads like film rather than digital noise. Mono grain changes brightness only; colour grain varies each channel.
 
 **Dither and quantise.** Finally each channel is rounded to 8 bits. Before rounding, Fade adds dither: TPDF (triangular) noise of up to ±1 LSB per channel, with a mean of zero. This is smaller than one 8-bit step, so you can't see it at normal viewing, and any grain masks it completely. What it prevents is banding: without it, smooth grain-free gradients, especially dark ones, show visible steps or contour lines where many neighbouring pixels round to the same value. Dither is on by default and has no switch in the UI. To turn it off, set `"dither": false` in the `params` of a settings file and import it, or pass `dither: false` when calling `generate`. The setting is kept when you export settings again.
+
+**Export.** The download renders the image at full size in the export worker and encodes it with `OffscreenCanvas.convertToBlob`. JPEG is lossy, at the chosen quality. PNG is lossless, but because grain barely compresses, PNG files are large (an 8K PNG can be 100 MB or more) and slower to encode. If the browser runs out of memory, the export fails with a message and the worker restarts, so you can try a smaller size.

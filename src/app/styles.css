@@ -948,6 +948,30 @@ html::-webkit-scrollbar-thumb {
   margin-left: auto;
 }
 
+.format-choice {
+  flex: none;
+}
+
+/* Equal-width pills, so the bolder checked label doesn't shift the row. */
+.format-choice .segment {
+  min-width: 44px;
+}
+
+.quality-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* PNG is lossless: quality doesn't apply, but the slider keeps its place. */
+.quality-group[data-disabled] {
+  opacity: 0.4;
+}
+
+.range:disabled {
+  cursor: default;
+}
+
 .quality {
   color: var(--ink-2);
   white-space: nowrap;
@@ -1058,9 +1082,15 @@ html::-webkit-scrollbar-thumb {
     margin-left: 0;
   }
 
+  .quality-group {
+    flex: 1;
+    min-width: 0;
+  }
+
   .range.compact {
     flex: 1;
     width: auto;
+    min-width: 0;
   }
 
   .primary-btn.wide {

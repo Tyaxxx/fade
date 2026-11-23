@@ -72,3 +72,11 @@ describe('Segmented (radio group pattern)', () => {
     expect(document.activeElement).toBe(radio('Alpha'));
   });
 });
+
+describe('Segmented hideLabel', () => {
+  it('keeps the group named by its label while hiding the label visually', () => {
+    render(<Segmented label="Export format" hideLabel value="a" options={OPTIONS} onChange={() => {}} />);
+    screen.getByRole('radiogroup', { name: 'Export format' });
+    expect(screen.getByText('Export format').className).toBe('sr-only');
+  });
+});

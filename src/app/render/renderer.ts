@@ -1,12 +1,13 @@
 import type { FadeParams, RenderedImage } from '../../core/index';
+import type { ExportEncoding } from '../lib/exportFormat';
 import type { RenderRequest, RenderResponse } from './protocol';
 
 /** The app's only way to get pixels. Swappable (tests inject a fake). */
 export interface Renderer {
   /** Latest-wins preview render: superseded requests are skipped. `onError` gets a short reason on failure. */
   renderPreview(params: FadeParams, scale: number, onImage: (image: RenderedImage) => void, onError?: (message: string) => void): void;
-  /** Full-resolution JPEG, rendered in its own worker so the preview stays live. */
-  exportJpeg(params: FadeParams, quality: number): Promise<Blob>;
+  /** Full-resolution image encoded as `encoding` (JPEG or PNG), rendered in its own worker so the preview stays live. */
+  exportImage(params: FadeParams, encoding: ExportEncoding): Promise<Blob>;
   dispose(): void;
 }
 
@@ -116,11 +117,11 @@ export function createRenderer(spawn: () => WorkerLike = defaultSpawn): Renderer
       previewLane.pump();
     },
 
-    exportJpeg(params, quality) {
+    exportImage(params, encoding) {
       return new Promise<Blob>((resolve, reject) => {
         exportQueue.push({
-          req: { id: exportLane.id(), kind: 'jpeg', params, quality },
-          resolve: (r) => (r.ok && r.kind === 'jpeg' ? resolve(r.blob) : reject(new Error(r.ok ? 'Unexpected reply' : r.error))),
+          req: { id: exportLane.id(), kind: 'export', params, encoding },
+          resolve: (r) => (r.ok && r.kind === 'export' ? resolve(r.blob) : reject(new Error(r.ok ? 'Unexpected reply' : r.error))),
         });
         exportLane.pump();
       });

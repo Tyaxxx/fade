@@ -51,8 +51,10 @@ const PREV_KEYS = ['ArrowLeft', 'ArrowUp'];
  */
 export function Segmented<T extends string>(props: {
   label: string;
+  /** Keep the label for screen readers only (the group still gets its name from it). */
+  hideLabel?: boolean;
   value: T | null;
-  options: { value: T; label: string }[];
+  options: readonly { value: T; label: string }[];
   onChange: (v: T) => void;
 }) {
   const id = useId();
@@ -78,7 +80,7 @@ export function Segmented<T extends string>(props: {
 
   return (
     <div className="field">
-      <span className="field-label" id={id}>
+      <span className={props.hideLabel ? 'sr-only' : 'field-label'} id={id}>
         {props.label}
       </span>
       <div className="segmented" role="radiogroup" aria-labelledby={id} onKeyDown={onKeyDown}>

@@ -1,8 +1,10 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import type { FadeParams } from '../../core/index';
+import { EXPORT_FORMATS, formatLabel, type ExportFormat } from '../lib/exportFormat';
 import { stageReadout } from '../lib/formats';
 import { DEAD_ERROR, type Renderer } from '../render/renderer';
 import { usePreview } from '../render/usePreview';
+import { Segmented } from './controls';
 import { DownloadIcon } from './icons';
 
 /** Fit a w×h image into a box, keeping its ratio. */
@@ -16,7 +18,10 @@ export function Stage(props: {
   params: FadeParams;
   quality: number;
   onQuality: (q: number) => void;
-  exporting: boolean;
+  format: ExportFormat;
+  onFormat: (f: ExportFormat) => void;
+  /** The format being rendered, or null when no export is running. */
+  exporting: ExportFormat | null;
   exportError: string | null;
   onDownload: () => void;
 }) {
@@ -43,6 +48,8 @@ export function Stage(props: {
   const readout = stageReadout(params.width, params.height);
   const qualityPct = Math.round(props.quality * 100);
   const qualityFill = ((props.quality - 0.5) / 0.5) * 100;
+  const busy = props.exporting !== null;
+  const downloadLabel = `Download ${formatLabel(props.format)}`;
 
   return (
     <main className="stage" aria-label="Image" style={{ '--aspect': `${params.width} / ${params.height}` } as CSSProperties}>
@@ -63,41 +70,49 @@ export function Stage(props: {
           {readout.ratio ? <span className="readout-ratio">{readout.ratio}</span> : null}
         </p>
         <div className="export">
-          <label className="quality" htmlFor="jpeg-quality">
-            JPEG quality
-          </label>
-          <input
-            id="jpeg-quality"
-            className="range compact"
-            type="range"
-            min={0.5}
-            max={1}
-            step={0.01}
-            value={props.quality}
-            style={{ '--pct': `${qualityFill}%` } as CSSProperties}
-            onChange={(e) => props.onQuality(Number(e.currentTarget.value))}
-          />
-          <output htmlFor="jpeg-quality" className="value quality-value">
-            {qualityPct}
-          </output>
+          <div className="format-choice">
+            <Segmented label="Export format" hideLabel value={props.format} options={EXPORT_FORMATS} onChange={props.onFormat} />
+          </div>
+          {/* PNG is lossless: the slider stays in place (no row jump) but is disabled and dimmed. */}
+          <div className="quality-group" data-disabled={props.format === 'png' || undefined}>
+            <label className="quality" htmlFor="jpeg-quality">
+              <span className="sr-only">JPEG quality</span>
+              <span aria-hidden="true">Quality</span>
+            </label>
+            <input
+              id="jpeg-quality"
+              className="range compact"
+              type="range"
+              min={0.5}
+              max={1}
+              step={0.01}
+              value={props.quality}
+              disabled={props.format === 'png'}
+              style={{ '--pct': `${qualityFill}%` } as CSSProperties}
+              onChange={(e) => props.onQuality(Number(e.currentTarget.value))}
+            />
+            <output htmlFor="jpeg-quality" className="value quality-value">
+              {qualityPct}
+            </output>
+          </div>
           <button
             type="button"
             className="primary-btn icon-only download has-tip"
-            aria-label="Download JPEG"
-            data-tip="Download JPEG"
+            aria-label={downloadLabel}
+            data-tip={downloadLabel}
             data-tip-pos="top"
             data-tip-align="end"
-            onClick={props.exporting ? undefined : props.onDownload}
-            aria-disabled={props.exporting}
-            aria-busy={props.exporting}
+            onClick={busy ? undefined : props.onDownload}
+            aria-disabled={busy}
+            aria-busy={busy}
           >
-            {props.exporting ? <span className="spinner" aria-hidden="true" /> : <DownloadIcon />}
+            {busy ? <span className="spinner" aria-hidden="true" /> : <DownloadIcon />}
           </button>
         </div>
         <div className="stage-messages">
           {/* Screen-reader only: a visible line here would resize the stage and re-render the preview mid-export. */}
           <p className="sr-only" role="status">
-            {props.exporting ? 'Rendering JPEG…' : null}
+            {props.exporting ? `Rendering ${formatLabel(props.exporting)}…` : null}
           </p>
           <p className="note error" role="status" title={error ?? undefined}>
             {error === DEAD_ERROR ? 'The preview couldn’t start. Reload the page.' : error ? 'Preview failed. Change a setting to try again.' : null}

@@ -42,12 +42,32 @@ function setup() {
 const last = (w: FakeWorker) => w.posted[w.posted.length - 1];
 const image = { width: 1, height: 1, data: new Uint8ClampedArray(4) };
 
+describe('createRenderer: exportImage', () => {
+  it('posts a PNG export with no quality on the export lane and resolves with the blob', async () => {
+    const { renderer, workers } = setup();
+    const p = renderer.exportImage(DEFAULT_PARAMS, { format: 'png' });
+    expect(workers[0].posted).toHaveLength(0);
+    const req = last(workers[1]);
+    expect(req).toMatchObject({ kind: 'export', params: DEFAULT_PARAMS });
+    expect(req.kind === 'export' && req.encoding).toEqual({ format: 'png' });
+    const blob = new Blob(['png'], { type: 'image/png' });
+    workers[1].reply({ id: req.id, ok: true, kind: 'export', blob });
+    await expect(p).resolves.toBe(blob);
+  });
+
+  it('carries the quality for a JPEG export', () => {
+    const { renderer, workers } = setup();
+    void renderer.exportImage(DEFAULT_PARAMS, { format: 'jpeg', quality: 0.7 });
+    expect(last(workers[1])).toMatchObject({ kind: 'export', encoding: { format: 'jpeg', quality: 0.7 } });
+  });
+});
+
 describe('createRenderer: export lane errors (R2)', () => {
   for (const kind of ['crash', 'badMessage'] as const) {
     it(`rejects the export, respawns the worker and keeps processing after ${kind}`, async () => {
       const { renderer, workers, spawn } = setup();
       const exportWorker = workers[1];
-      const first = renderer.exportJpeg(DEFAULT_PARAMS, 0.9);
+      const first = renderer.exportImage(DEFAULT_PARAMS, { format: 'jpeg', quality: 0.9 });
       expect(exportWorker.posted).toHaveLength(1);
       exportWorker[kind]();
       await expect(first).rejects.toThrow(/ran out of memory or crashed/);
@@ -55,30 +75,30 @@ describe('createRenderer: export lane errors (R2)', () => {
       expect(spawn).toHaveBeenCalledTimes(3);
 
       const fresh = workers[2];
-      const second = renderer.exportJpeg(DEFAULT_PARAMS, 0.9);
+      const second = renderer.exportImage(DEFAULT_PARAMS, { format: 'jpeg', quality: 0.9 });
       expect(fresh.posted).toHaveLength(1);
       const blob = new Blob(['x']);
-      fresh.reply({ id: last(fresh).id, ok: true, kind: 'jpeg', blob });
+      fresh.reply({ id: last(fresh).id, ok: true, kind: 'export', blob });
       await expect(second).resolves.toBe(blob);
     });
   }
 
   it('processes a queued export on the new worker after a crash', async () => {
     const { renderer, workers } = setup();
-    const first = renderer.exportJpeg(DEFAULT_PARAMS, 0.9);
-    const second = renderer.exportJpeg(DEFAULT_PARAMS, 0.8);
+    const first = renderer.exportImage(DEFAULT_PARAMS, { format: 'jpeg', quality: 0.9 });
+    const second = renderer.exportImage(DEFAULT_PARAMS, { format: 'jpeg', quality: 0.8 });
     workers[1].crash();
     await expect(first).rejects.toThrow();
     const fresh = workers[2];
     expect(fresh.posted).toHaveLength(1);
     const blob = new Blob(['y']);
-    fresh.reply({ id: last(fresh).id, ok: true, kind: 'jpeg', blob });
+    fresh.reply({ id: last(fresh).id, ok: true, kind: 'export', blob });
     await expect(second).resolves.toBe(blob);
   });
 
   it('keeps the worker’s own error message when it replies ok:false', async () => {
     const { renderer, workers } = setup();
-    const p = renderer.exportJpeg(DEFAULT_PARAMS, 0.9);
+    const p = renderer.exportImage(DEFAULT_PARAMS, { format: 'jpeg', quality: 0.9 });
     workers[1].reply({ id: last(workers[1]).id, ok: false, error: 'Too big.' });
     await expect(p).rejects.toThrow('Too big.');
   });
@@ -86,12 +106,12 @@ describe('createRenderer: export lane errors (R2)', () => {
   it('stops respawning after repeated start-up failures', async () => {
     const { renderer, workers } = setup();
     for (let i = 0; i < 3; i++) {
-      const p = renderer.exportJpeg(DEFAULT_PARAMS, 0.9);
+      const p = renderer.exportImage(DEFAULT_PARAMS, { format: 'jpeg', quality: 0.9 });
       workers[workers.length - 1].crash();
       await expect(p).rejects.toThrow();
     }
     const count = workers.length;
-    await expect(renderer.exportJpeg(DEFAULT_PARAMS, 0.9)).rejects.toThrow(/couldn’t start/);
+    await expect(renderer.exportImage(DEFAULT_PARAMS, { format: 'jpeg', quality: 0.9 })).rejects.toThrow(/couldn’t start/);
     expect(workers.length).toBe(count);
   });
 });

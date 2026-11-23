@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useEffectEvent, useReducer, useState } from 'react';
-import { DEFAULT_PARAMS, encodeSeedCode, type FadeParams } from '../core/index';
+import { DEFAULT_PARAMS, type FadeParams } from '../core/index';
 import { downloadBlob, FileActions } from './components/FileActions';
 import { RandomizeButton } from './components/RandomizeButton';
 import { PanelHeader, SettingsPanel } from './components/SettingsPanel';
 import { Stage } from './components/Stage';
+import { exportFilename, type ExportEncoding, type ExportFormat } from './lib/exportFormat';
 import { historyReducer, initHistory } from './lib/history';
 import { randomizeLooks, unlockedLooks, type Look, type LookLocks } from './lib/randomize';
 import { getSharedRenderer, type Renderer } from './render/renderer';
@@ -21,7 +22,10 @@ export function App({ renderer = getSharedRenderer() }: { renderer?: Renderer })
   const [history, dispatch] = useReducer(historyReducer, DEFAULT_PARAMS, initHistory);
   const [locks, setLocks] = useState<LookLocks>(NO_LOCKS);
   const [quality, setQuality] = useState(0.92);
-  const [exporting, setExporting] = useState(false);
+  // UI state only: not part of the settings file or undo history.
+  const [format, setFormat] = useState<ExportFormat>('jpeg');
+  /** The format of the export in progress, or null when idle. */
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const params = history.present;
 
@@ -40,15 +44,17 @@ export function App({ renderer = getSharedRenderer() }: { renderer?: Renderer })
   const onRandomizeKey = useEffectEvent(randomizeAll);
 
   const download = async () => {
-    setExporting(true);
+    // Captured at click time, so changing the format mid-export doesn't affect this job.
+    const encoding: ExportEncoding = format === 'jpeg' ? { format, quality } : { format };
+    setExporting(format);
     setExportError(null);
     try {
-      const blob = await renderer.exportJpeg(params, quality);
-      downloadBlob(blob, `fade-${encodeSeedCode(params.seeds)}-${params.width}x${params.height}.jpg`);
+      const blob = await renderer.exportImage(params, encoding);
+      downloadBlob(blob, exportFilename(params, format));
     } catch (err) {
       setExportError(err instanceof Error ? err.message : String(err));
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -96,6 +102,8 @@ export function App({ renderer = getSharedRenderer() }: { renderer?: Renderer })
         params={params}
         quality={quality}
         onQuality={setQuality}
+        format={format}
+        onFormat={setFormat}
         exporting={exporting}
         exportError={exportError}
         onDownload={download}

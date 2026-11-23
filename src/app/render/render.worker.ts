@@ -1,4 +1,5 @@
 import { generate } from '../../core/index';
+import { encodeOptions, formatLabel } from '../lib/exportFormat';
 import type { RenderRequest, RenderResponse } from './protocol';
 
 // Minimal view of the dedicated-worker global (the app tsconfig uses the DOM lib).
@@ -19,16 +20,16 @@ async function handle(req: RenderRequest): Promise<void> {
     const c2d = canvas.getContext('2d');
     if (!c2d) throw new Error('This browser cannot draw images in the background.');
     c2d.putImageData(new ImageData(image.data as Uint8ClampedArray<ArrayBuffer>, image.width, image.height), 0, 0);
-    const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: req.quality });
-    ctx.postMessage({ id: req.id, ok: true, kind: 'jpeg', blob });
+    const blob = await canvas.convertToBlob(encodeOptions(req.encoding));
+    ctx.postMessage({ id: req.id, ok: true, kind: 'export', blob });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     ctx.postMessage({
       id: req.id,
       ok: false,
       error:
-        req.kind === 'jpeg'
-          ? `Couldn't create the JPEG at ${req.params.width} × ${req.params.height} px. Try a smaller size. (${detail})`
+        req.kind === 'export'
+          ? `Couldn't create the ${formatLabel(req.encoding.format)} at ${req.params.width} × ${req.params.height} px. Try a smaller size. (${detail})`
           : detail,
     });
   }

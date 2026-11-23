@@ -7,7 +7,7 @@ import type { Renderer } from '../render/renderer';
 
 const renderer: Renderer = {
   renderPreview: () => undefined,
-  exportJpeg: vi.fn(async () => new Blob()),
+  exportImage: vi.fn(async () => new Blob()),
   dispose: () => undefined,
 };
 

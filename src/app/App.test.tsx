@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FadeParams } from '../core/index';
+import { DEFAULT_PARAMS, encodeSeedCode } from '../core/index';
 import { App } from './App';
 import type { Renderer } from './render/renderer';
 
@@ -11,7 +12,7 @@ function fakeRenderer() {
     renderPreview: (params) => {
       previews.push(params);
     },
-    exportJpeg: vi.fn(async () => new Blob(['x'], { type: 'image/jpeg' })),
+    exportImage: vi.fn(async () => new Blob(['x'], { type: 'image/jpeg' })),
     dispose: () => undefined,
   };
   return { renderer, previews };
@@ -189,5 +190,87 @@ describe('App', () => {
     expand('Texture');
     fireEvent.click(screen.getByRole('radio', { name: 'Rough' }));
     expect(screen.getByText('Rough grain')).toBeTruthy();
+  });
+});
+
+describe('App export format', () => {
+  const formatGroup = () => within(screen.getByRole('radiogroup', { name: 'Export format' }));
+  const pick = (name: 'JPEG' | 'PNG') => fireEvent.click(formatGroup().getByRole('radio', { name }));
+  const quality = () => screen.getByRole('slider', { name: 'JPEG quality' }) as HTMLInputElement;
+  const prefix = `fade-${encodeSeedCode(DEFAULT_PARAMS.seeds)}-`;
+
+  /** Records the filename of every anchor download. */
+  function captureDownloads() {
+    const names: string[] = [];
+    URL.createObjectURL = vi.fn(() => 'blob:fake');
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      names.push(this.download);
+    });
+    return names;
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('offers JPEG and PNG, with JPEG checked by default', () => {
+    const { renderer } = fakeRenderer();
+    render(<App renderer={renderer} />);
+    expect(formatGroup().getByRole('radio', { name: 'JPEG' }).getAttribute('aria-checked')).toBe('true');
+    expect(formatGroup().getByRole('radio', { name: 'PNG' }).getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('disables the quality slider for PNG and restores it with the same value for JPEG', () => {
+    const { renderer } = fakeRenderer();
+    render(<App renderer={renderer} />);
+    fireEvent.change(quality(), { target: { value: '0.8' } });
+    pick('PNG');
+    expect(quality().disabled).toBe(true);
+    pick('JPEG');
+    expect(quality().disabled).toBe(false);
+    expect(quality().value).toBe('0.8');
+  });
+
+  it('names the download button after the chosen format, without adding an undo step', () => {
+    const { renderer } = fakeRenderer();
+    render(<App renderer={renderer} />);
+    pick('PNG');
+    const btn = screen.getByRole('button', { name: 'Download PNG' });
+    expect(btn.getAttribute('data-tip')).toBe('Download PNG');
+    expect(screen.queryByRole('button', { name: 'Download JPEG' })).toBeNull();
+    expect((screen.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('downloads a PNG with no quality and a .png name', async () => {
+    const { renderer } = fakeRenderer();
+    const names = captureDownloads();
+    render(<App renderer={renderer} />);
+    pick('PNG');
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Download PNG' })));
+    expect(renderer.exportImage).toHaveBeenCalledWith(DEFAULT_PARAMS, { format: 'png' });
+    expect(names).toEqual([`${prefix}1920x1080.png`]);
+  });
+
+  it('downloads a JPEG at the chosen quality with a .jpg name', async () => {
+    const { renderer } = fakeRenderer();
+    const names = captureDownloads();
+    render(<App renderer={renderer} />);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Download JPEG' })));
+    expect(renderer.exportImage).toHaveBeenCalledWith(DEFAULT_PARAMS, { format: 'jpeg', quality: 0.92 });
+    expect(names).toEqual([`${prefix}1920x1080.jpg`]);
+  });
+
+  it('announces the format being rendered, even if the choice changes mid-export', async () => {
+    const { renderer } = fakeRenderer();
+    let finish: (b: Blob) => void = () => {};
+    vi.mocked(renderer.exportImage).mockImplementation(() => new Promise<Blob>((r) => (finish = r)));
+    captureDownloads();
+    render(<App renderer={renderer} />);
+    pick('PNG');
+    fireEvent.click(screen.getByRole('button', { name: 'Download PNG' }));
+    expect(screen.getByText('Rendering PNG…')).toBeTruthy();
+    pick('JPEG');
+    expect(screen.getByText('Rendering PNG…')).toBeTruthy();
+    await act(async () => finish(new Blob(['x'])));
+    expect(screen.queryByText(/Rendering/)).toBeNull();
   });
 });
