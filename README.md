@@ -36,6 +36,18 @@ npm run samples    # render tuning samples to out/samples/*.png (not part of npm
 
 In PowerShell, if `npm` is blocked by the execution policy, use `npm.cmd` (e.g. `npm.cmd run dev`).
 
+## Deploying
+
+The app is hosted on GitHub Pages at <https://tyaxxx.github.io/fade/>. Every push to `main` triggers `.github/workflows/deploy.yml`, which runs the tests, builds and publishes `dist/`. Production builds use the `/fade/` base path (see `vite.config.ts`).
+
+To publish local changes in one step (Windows):
+
+```powershell
+npm.cmd run deploy -- "What changed"
+```
+
+`scripts/deploy.ps1` runs the tests and build, commits all changes with that message, pushes, waits for the GitHub Pages run to finish and opens the live site. It stops without pushing if a test or the build fails.
+
 ## Project layout
 
 - `src/core/` is the generator: pure TypeScript with no DOM or React imports, so it runs in workers, tests and Node alike. Its public interface is `src/core/index.ts` (`generate`, `normalizeParams`, palettes, seed codes, settings parsing).
